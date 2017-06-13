@@ -10,7 +10,7 @@ const uint8_t LOOP_INTERVAL = 5; // in minutes
 const uint16_t PUMPING_DURATION = 3500; // in ms
 
 // Moisture threshold
-const uint16_t MOISTURE_THRESHOLD = 250; // higher values mean drier
+const uint16_t MOISTURE_THRESHOLD = 700; // higher values mean drier
 
 void setup() {
   /* Set up pins */
@@ -55,7 +55,8 @@ void loop() {
 
   /* Pump water to the plant if necessary */
 
-  if (moistureLevel > MOISTURE_THRESHOLD) {
+  if (moistureLevel > MOISTURE_THRESHOLD &&
+      moistureLevel < 900 /* only sane values! */) {
     // Too dry: give it a sip of water
     digitalWrite(PIN_PUMP, HIGH);
     delay(PUMPING_DURATION);
