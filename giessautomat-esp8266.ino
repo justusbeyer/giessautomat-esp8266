@@ -10,7 +10,7 @@ const uint8_t PIN_SENSOR_POWER = 5;
 const uint8_t PIN_SENSOR_ANALOG_IN = A0;
 
 // Timing
-uint8_t LOOP_INTERVAL = 1; // in minutes
+const uint8_t LOOP_INTERVAL = 5; // in minutes
 const uint16_t PUMPING_DURATION = 3500; // in ms
 
 // Moisture threshold
@@ -87,6 +87,7 @@ void handleWatering() {
 
   if (lastMoistureLevelMeasurement > moistureLevelThreshold) {
     // Too dry: give it a sip of water
+    Serial.println("Pumping water!");
     digitalWrite(PIN_PUMP, HIGH);
     delay(PUMPING_DURATION);
     digitalWrite(PIN_PUMP, LOW);
