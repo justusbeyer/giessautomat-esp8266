@@ -1,3 +1,7 @@
+#include <ESP8266WiFi.h>
+#include <ThingerESP8266.h>
+#include "thingerio-credentials.h"
+
 /* Configuration */
 
 // Pins
@@ -6,11 +10,19 @@ const uint8_t PIN_SENSOR_POWER = 5;
 const uint8_t PIN_SENSOR_ANALOG_IN = A0;
 
 // Timing
-const uint8_t LOOP_INTERVAL = 5; // in minutes
+uint8_t LOOP_INTERVAL = 1; // in minutes
 const uint16_t PUMPING_DURATION = 3500; // in ms
 
 // Moisture threshold
-const uint16_t MOISTURE_THRESHOLD = 250; // higher values mean drier
+uint16_t moistureLevelThreshold = 730; // higher values mean drier
+
+// Last measured moisture leve
+uint16_t lastMoistureLevelMeasurement = 0;
+
+// Timestamp of last moisture level measurement
+uint32_t lastMoistureLevelMeasurementTimestamp = 0;
+
+ThingerESP8266 thing(USERNAME, DEVICE_ID, DEVICE_CREDENTIAL);
 
 void setup() {
   /* Set up pins */
@@ -30,10 +42,28 @@ void setup() {
 
   /* Debugging via serial */
   Serial.begin(115200);
+
+  /* Setup Thinger.io cloud */
+  thing.add_wifi(SSID, SSID_PASSWORD);
+  thing["moistureLevel"] >> [](pson& out) { out = lastMoistureLevelMeasurement; };
+  
+  thing["moistureLevelThreshold"] << [](pson& in) {
+    if (in.is_empty() || (uint32_t)in < 200) {
+      in = moistureLevelThreshold;
+    } else {
+      Serial.print("Set moisture level threshold from ");
+      Serial.print(moistureLevelThreshold);
+      Serial.print(" to ");
+      Serial.print((uint16_t)in);
+      Serial.println(".");
+      moistureLevelThreshold = (uint16_t)in;
+    }
+  };
+
+  Serial.println("Setup done.");
 }
 
-
-void loop() {
+void handleWatering() {
 
   /* Measure the water content of the soil */
   
@@ -44,25 +74,34 @@ void loop() {
   delay(500);
 
   // Read the sensor value (TODO: Rename moisture level to sth like drynessLevel)
-  uint16_t moistureLevel = analogRead(PIN_SENSOR_ANALOG_IN);
+  lastMoistureLevelMeasurement = analogRead(PIN_SENSOR_ANALOG_IN);
 
   // Power down the sensor
   digitalWrite(PIN_SENSOR_POWER, LOW);
 
   // Debug out
   Serial.print("Moisture: ");
-  Serial.println(moistureLevel);
+  Serial.println(lastMoistureLevelMeasurement);
 
   /* Pump water to the plant if necessary */
 
-  if (moistureLevel > MOISTURE_THRESHOLD) {
+  if (lastMoistureLevelMeasurement > moistureLevelThreshold) {
     // Too dry: give it a sip of water
     digitalWrite(PIN_PUMP, HIGH);
     delay(PUMPING_DURATION);
     digitalWrite(PIN_PUMP, LOW);
   }
+  
+  lastMoistureLevelMeasurementTimestamp = millis();
+}
 
-  // Give the plant some time to absorb the water, then check again.
-  for (int i=0; i < LOOP_INTERVAL; i++)
-    delay((uint16_t)60000);
+void loop() {
+  uint32_t now = millis();
+
+  if (lastMoistureLevelMeasurementTimestamp == 0 ||
+      now - lastMoistureLevelMeasurementTimestamp > (uint32_t)LOOP_INTERVAL * 60000UL) {
+    handleWatering();
+  }
+
+  thing.handle();
 }
